@@ -1,0 +1,110 @@
+#!/bin/bash 
+set -e -u
+#
+# put RPMs given in $@ in YUM repo hosted on S3. S3 Bucket is mandatory first parameter, RPMs to upload optional other parameters.
+#
+# example
+# update-s3-yum-repo s3://... some.rpm some-other.rpm
+#
+# Author: Schlomo.Schapiro at ImmobilienScout24.de
+#
+# License: GNU General Public License
+#
+
+function log {
+    logger -t "$0" -- "$@"
+    echo $@
+}
+
+function die {
+    logger -s -t "$0" -- "ERROR: $@"
+    exit 1
+}
+
+if [[ "$#" -gt 0 && "$1" = s3://* ]] ; then
+    REPO_URL="$1"
+    shift
+else
+    die "Usage: $0 <s3://...> [<file.rpm> ...]. Must give S3 bucket as first parameter."
+fi
+
+# Local cache of yum repo
+REPO="/var/cache/update-s3-yum-repo/${REPO_URL##s3://}"
+mkdir -p "$REPO" || die "Could not create local working dir '$REPO'"
+
+# retry 50 times and wait 5 seconds.
+LOCKFILE="$REPO".lock
+if ! lockfile -5 -r 50 "$LOCKFILE" ; then
+    die "Could not create lockfile '$LOCKFILE' for '$REPO_URL'"
+fi
+
+trap "rm -f '$LOCKFILE'" 0
+
+S3CMD_OPTIONS=( 
+    --force --no-progress --delete-removed --skip-existing --no-check-md5 
+    $(
+        [[ -r /etc/update-s3-yum-repo.conf ]] && echo --config /etc/update-s3-yum-repo.conf
+    )
+)
+s3cmd >/dev/null ${S3CMD_OPTIONS[@]} sync "$REPO_URL"/ "$REPO"/ || die "Could not download from '$REPO_URL'"
+
+for package in "$@" ; do
+    errors=()
+    # check that this is a package
+    source_rpm_field_value="$(rpm -q --queryformat="%{SOURCERPM}" -p "$package")"
+    if [[ "$source_rpm_field_value" == "" ]] ; then
+        errors=( "${errors[@]}" "Not an RPM package")
+
+    # Validate binary RPM, binary RPM are an RPM package and don't have '(none)' as a src.rpm field
+    elif [[ "$source_rpm_field_value" != "(none)" ]] ; then
+        # check that the package content and file name match
+        canonical_name="$(rpm -q --queryformat="%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}.rpm" --nosignature -p "$package"  )"
+        [ "$canonical_name" ] || errors=( "${errors[@]}" "Could not determine canonical package file name")
+        [ "${package##*/}" = "$canonical_name" ] || errors=( "${errors[@]}" "Package file name should be '$canonical_name' but it is '${package##*/}'")
+
+        # check that the OS and PLATFORM really are Linux (NOTE: Negative test!)
+        os="$(rpm -q --queryformat="%{OS}" --nosignature -p "$package")"
+        platform="$(rpm -q --queryformat="%{PLATFORM}" --nosignature -p "$package")"
+        [ "$os" = linux ] || errors=( "${errors[@]}" "The package is not a Linux package, OS is '$os'")
+        [[ "$platform" == *linux* ]] || errors=( "${errors[@]}" "The package does not have a Linux platform, PLATFORM is '$platform'")
+
+    # Validate source RPM, they don't have a src.rpm set
+    else
+        # check that the package content and file name match - source RPMs always have src instead of %{ARCH}
+        canonical_name="$(rpm -q --queryformat="%{NAME}-%{VERSION}-%{RELEASE}.src.rpm" --nosignature -p "$package"  )"
+        [ "$canonical_name" ] || errors=( "${errors[@]}" "Could not determine canonical package file name")
+        [ "${package##*/}" = "$canonical_name" ] || errors=( "${errors[@]}" "Package file name should be '$canonical_name' but it is '${package##*/}'")
+    fi
+
+    if [[ "${#errors[@]}" -gt 0 ]] ; then
+        echo " 
+The package '$package' is not valid, please take care of the following errors:
+
+$( for e in "${errors[@]}" ; do echo -e "\t * $e" ; done )
+
+Use this command to print all internal RPM fields:
+rpm -q --queryformat=\"\$(rpm --querytags | sed -e 's/.*/&:%{&}/g')\" -p $package
+
+"
+        die "Package '$package' is broken, aborting"
+    fi
+done
+
+# we get here only after validating *all* packages so that in case of an error no package was copied
+for package in "$@" ; do
+
+	arch="${package%.rpm}"
+	arch="${arch##*.}"
+	mkdir -p "$REPO/$arch" || die "Could not mkdir '$REPO/$arch'"
+	cp "$package" "$REPO/$arch/" || die "Could not copy '$package' to '$REPO/$arch/'"
+done
+
+# the update options are used only if adding packages to the repo.
+# else we rebuild the repo from scratch to make sure that removed packages are also removed from the metadata
+# and we also remove the cache in this case as it is not cleaned otherwise
+[[ "$@" ]] || rm -Rf "${REPO}.cache"
+repomanage --old --keep=2 -c "$REPO" | xargs rm -f
+createrepo -q ${1:+--update -c "${REPO}.cache"} --retain-old-md=3 --workers=3 --unique-md-filenames --database -d "$REPO" || die "Could not createrepo in '$REPO'"
+
+s3cmd >/dev/null ${S3CMD_OPTIONS[@]} sync "$REPO"/ "$REPO_URL"/ || die "Cloud not upload repo to s3"
+ 
