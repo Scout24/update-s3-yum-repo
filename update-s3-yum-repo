@@ -43,7 +43,7 @@ trap "rm -f '$LOCKFILE'" 0
 S3CMD_OPTIONS=( 
     --force --no-progress --delete-removed --skip-existing --no-check-md5 
     $(
-        [[ -r /etc/update-s3-yum-repo.conf ]] && echo --config /etc/update-s3-yum-repo.conf
+        [[ -r /etc/update-s3-yum-repo.conf ]] && echo --config /etc/update-s3-yum-repo.conf || echo "Notice: No /etc/update-s3-yum-repo.conf found, using ~/.s3cfg instead" 1>&2
     )
 )
 s3cmd >/dev/null ${S3CMD_OPTIONS[@]} sync "$REPO_URL"/ "$REPO"/ || die "Could not download from '$REPO_URL'"
