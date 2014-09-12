@@ -44,8 +44,8 @@ rpminfo: rpm
 	rpm -qip dist/*.noarch.rpm
 
 rpmrepo: rpm
-	echo "##teamcity[buildStatus text='{build.status.text} RPM Version $(shell rpm -qp dist/*src.rpm --queryformat "%{VERSION}-%{RELEASE}")']"
 	repoclient uploadto "$(TARGET_REPO)" dist/*.rpm
+	echo "##teamcity[buildStatus text='{build.status.text} RPM Version $(shell rpm -qp dist/*src.rpm --queryformat "%{VERSION}-%{RELEASE}") in $(TARGET_REPO)']"
 
 clean:
 	rm -Rf dist build test
