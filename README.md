@@ -26,3 +26,6 @@ Tested on RHEL6 (compatible) with EPEL attached.
 - Checkout source from GitHub
 - Run `make` to build a dist archive and RPMs in `dist/`
 - Install the RPM, it will pull in all required dependencies
+
+
+If using the [yum repo server](https://github.com/immobilienscout24/yum-repo-server/) then `TARGET_REPO=<repo-name> make rpmrepo` builds and uploads in one step :-)
