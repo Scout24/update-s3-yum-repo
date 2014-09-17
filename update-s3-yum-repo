@@ -106,5 +106,5 @@ done
 repomanage --old --keep=2 -c "$REPO" | xargs rm -f
 createrepo -q ${1:+--update -c "${REPO}.cache"} --retain-old-md=3 --workers=3 --unique-md-filenames --database -d "$REPO" || die "Could not createrepo in '$REPO'"
 
-s3cmd >/dev/null ${S3CMD_OPTIONS[@]} sync "$REPO"/ "$REPO_URL"/ || die "Cloud not upload repo to s3"
+s3cmd >/dev/null ${S3CMD_OPTIONS[@]} sync "$REPO"/ "$REPO_URL"/ || die "Could not upload repo to s3"
  
