@@ -41,7 +41,7 @@ fi
 trap "rm -f '$LOCKFILE'" 0
 
 S3CMD_OPTIONS=( 
-    --force --no-progress --delete-removed --no-check-md5 
+    --force --no-progress --delete-removed
     $(
         [[ -r /etc/update-s3-yum-repo.conf ]] && echo --config /etc/update-s3-yum-repo.conf || echo "Notice: No /etc/update-s3-yum-repo.conf found, using ~/.s3cfg instead" 1>&2
     )
