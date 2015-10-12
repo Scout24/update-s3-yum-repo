@@ -7,18 +7,7 @@ Usage
 -----
 
 - Create a S3 bucket
-- Create a [s3cmd config file](http://s3tools.org/kb/item14.htm) in `/etc/update-s3-yum-repo.conf` with at least the access and secret keys, e.g.
-```ini
-[default]
-access_key = TUOWAAA99023990001
-secret_key = sd/ceP_vbb#eDDDK
-bucket_location = eu-west-1
-host_base = s3-eu-west-1.amazonaws.com
-host_bucket = %(bucket)s.s3-eu-west-1.amazonaws.com
-website_endpoint = http://%(bucket)s.s3-website-%(location)s.amazonaws.com/
-```
-  The provided access and secret keys need to have at least List/Get/Put permissions on this S3 bucket. For performance reason you should also adjust s3cmd for your primary region.
-
+- Set up your AWS access credentials as documented by Amazon.
 - Run `update-s3-yum-repo s3://bucket-name` to initialize the YUM repo
 - Run `update-s3-yum-repo s3://bucket-name <RPM files ...>` to add RPM packages to the YUM repo
 

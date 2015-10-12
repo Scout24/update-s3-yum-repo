@@ -40,13 +40,8 @@ fi
 
 trap "rm -f '$LOCKFILE'" 0
 
-S3CMD_OPTIONS=( 
-    --force --no-progress --delete-removed
-    $(
-        [[ -r /etc/update-s3-yum-repo.conf ]] && echo --config /etc/update-s3-yum-repo.conf || echo "Notice: No /etc/update-s3-yum-repo.conf found, using ~/.s3cfg instead" 1>&2
-    )
-)
-s3cmd >/dev/null ${S3CMD_OPTIONS[@]} sync "$REPO_URL"/ "$REPO"/ || die "Could not download from '$REPO_URL'"
+AWSCLI_OPTIONS=(--delete --only-show-errors)
+aws s3 sync ${AWSCLI_OPTIONS[@]} "$REPO_URL" "$REPO" || die "Could not download from '$REPO_URL'"
 
 for package in "$@" ; do
     errors=()
@@ -106,5 +101,4 @@ done
 repomanage --old --keep=2 -c "$REPO" | xargs rm -f
 createrepo -q ${1:+--update -c "${REPO}.cache"} --retain-old-md=3 --workers=3 --unique-md-filenames --database -d "$REPO" || die "Could not createrepo in '$REPO'"
 
-s3cmd >/dev/null ${S3CMD_OPTIONS[@]} sync "$REPO"/ "$REPO_URL"/ || die "Could not upload repo to s3"
- 
+aws s3 sync ${AWSCLI_OPTIONS[@]} "$REPO" "$REPO_URL" || die "Could not upload repo to s3"
