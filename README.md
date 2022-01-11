@@ -1,3 +1,10 @@
+Deprecation Notice
+==================
+
+The Software here is not in use anymore by the original authors, it has been unmaintained for several years now. Feel free to go with the code (as long as you adhere to the license). 
+
+Thank you for being on this ride with us, as long as it lasted. 
+
 update-s3-yum-repo
 ==================
 
